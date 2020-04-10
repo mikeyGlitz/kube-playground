@@ -8,6 +8,7 @@ kubernetes cluster using minikube.
 - [Setting up load balancer](#setting-up-load-balancer)
 - [Setting up ingress](#setting-up-ingress)
 - [Service Mesh](#service-mesh)
+  - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [TODO](#todo)
 
 ## Prerequisites
@@ -58,6 +59,17 @@ Install the linkerd mesh with the following command.
 
 ```
 linkerd install | kubectl apply -f -
+```
+
+### Setting up distributed tracing
+
+1. Install the collector
+```
+kubectl apply -f https://run.linkerd.io/tracing/collector.yml
+```
+2. Install [Jaeger](https://www.jaegertracing.io/)
+```
+kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ```
 
 ## TODO
