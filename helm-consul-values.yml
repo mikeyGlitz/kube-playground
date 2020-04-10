@@ -1,0 +1,11 @@
+# This file contains a set of values which can be used to set up
+# and configure Hashicorp Consul using the Consul Helm Chart
+global:
+  datacenter: localnet
+client:
+  enabled: true
+server:
+  replicas: 1
+  bootstrapExpect: 1
+  disruptionBudget:
+    maxUnavailable: 0

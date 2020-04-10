@@ -1,0 +1,7 @@
+# This file contains a set of values which can be used to set up
+# and configure Hashicorp Vault using the Vault Helm Chart
+# https://www.vaultproject.io/docs/platform/k8s/helm/configuration
+server:
+  affinity: ""
+  ha:
+    enabled: true
