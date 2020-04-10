@@ -39,9 +39,23 @@ Alternatively, the ingress could be controlled using minikube's builtin ingress-
 minikube addons enable ingress
 ```
 
+## Service Mesh
+
+A service mesh is an infrastructure layer for making service-to-service communication
+secure, fast, and reliable. Service meshes provide runtime debugging and observability.
+
+This cluster was set up using [Linkerd](https://linkerd.io/2/overview/).
+Follow the [linkerd install instructions](https://linkerd.io/2/getting-started/#step-1-install-the-cli).
+
+Install the linkerd mesh with the following command.
+
+```
+linkerd install | kubectl apply -f -
+```
+
 ## TODO
 [//]: # "&#9744; - unchecked   &#9745; - checked"
 - &#9744; Set up Vault for storing secrets
-- &#9744; Set up Linkerd for service mesh operations
+- &#9745; Set up Linkerd for service mesh operations
 - &#9744; Set up cert-manager for managing certificates
 - &#9744; Set up Keycloak for SSO
