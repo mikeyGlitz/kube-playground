@@ -3,6 +3,13 @@
 This repository contains setup and installation for a local
 kubernetes cluster using minikube.
 
+**Table of Contents**
+- [Prerequistes](#prerequisites)
+- [Setting up load balancer](#setting-up-load-balancer)
+- [Setting up ingress](#setting-up-ingress)
+- [Service Mesh](#service-mesh)
+- [TODO](#todo)
+
 ## Prerequisites
 
 1. Install [minikube](https://minikube.sigs.k8s.io/docs/start/)
@@ -55,7 +62,7 @@ linkerd install | kubectl apply -f -
 
 ## TODO
 [//]: # "&#9744; - unchecked   &#9745; - checked"
-- &#9744; Set up Vault for storing secrets
-- &#9745; Set up Linkerd for service mesh operations
-- &#9744; Set up cert-manager for managing certificates
-- &#9744; Set up Keycloak for SSO
+- &#9744;&nbsp;Set up Vault for storing secrets
+- &#9745;&nbsp;Set up Linkerd for service mesh operations
+- &#9744;&nbsp;Set up cert-manager for managing certificates
+- &#9744;&nbsp;Set up Keycloak for SSO
