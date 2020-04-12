@@ -4,7 +4,8 @@ This repository contains setup and installation for a local
 kubernetes cluster using minikube.
 
 **Table of Contents**
-- [Prerequistes](#prerequisites)
+- [Prerequistes](#prerequisites)A
+  - [Minikube on Windows](#minikube-on-windows)
 - [Setting up load balancer](#setting-up-load-balancer)
 - [Setting up ingress](#setting-up-ingress)
 - [Storing secrets](#storing-secrets)
@@ -22,6 +23,13 @@ kubernetes cluster using minikube.
 ```
 minikube start --driver=<hyperv|virtualbox>
 ```
+
+### Minikube on Windows
+
+If you're using hyperv in Windows to manage minikube,
+a script has been provided [minikube-control.ps1](./minikube-contro.ps1)
+In order to make it easier to run minikube since hyperv requires elevated
+privileges.
 
 ## Setting up load balancer
 
