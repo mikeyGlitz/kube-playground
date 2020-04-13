@@ -142,7 +142,7 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 
 ## TODO
 [//]: # "&#9744; - unchecked   &#9745; - checked"
-- &#9744;&nbsp;Set up Vault for storing secrets
+- &#8987;&nbsp;Set up Vault for storing secrets
 - &#9745;&nbsp;Set up Linkerd for service mesh operations
 - &#9744;&nbsp;Set up cert-manager for managing certificates
 - &#9744;&nbsp;Set up Keycloak for SSO
