@@ -4,7 +4,7 @@ This repository contains setup and installation for a local
 kubernetes cluster using minikube.
 
 **Table of Contents**
-- [Prerequistes](#prerequisites)A
+- [Prerequistes](#prerequisites)
   - [Minikube on Windows](#minikube-on-windows)
 - [Setting up load balancer](#setting-up-load-balancer)
 - [Setting up ingress](#setting-up-ingress)
@@ -27,7 +27,7 @@ minikube start --driver=<hyperv|virtualbox>
 ### Minikube on Windows
 
 If you're using hyperv in Windows to manage minikube,
-a script has been provided [minikube-control.ps1](./minikube-contro.ps1)
+a script has been provided [minikube-control.ps1](./minikube-control.ps1)
 In order to make it easier to run minikube since hyperv requires elevated
 privileges.
 
@@ -141,7 +141,7 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ```
 
 ## TODO
-[//]: # "&#9744; - unchecked   &#9745; - checked"
+[//]: # "&#9744; - unchecked   &#9745; - checked   &#8987; - hourglass"
 - &#8987;&nbsp;Set up Vault for storing secrets
 - &#9745;&nbsp;Set up Linkerd for service mesh operations
 - &#9744;&nbsp;Set up cert-manager for managing certificates
