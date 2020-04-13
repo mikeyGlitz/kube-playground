@@ -11,6 +11,7 @@ kubernetes cluster using minikube.
 - [Storing secrets](#storing-secrets)
   - [Consul](#consul)
   - [Vault](#vault)
+  - [Sidecar injection and configuring the agent](#sidecar-injection-and-configuring-the-agent)
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [TODO](#todo)
@@ -115,6 +116,10 @@ helm install vault \
     https://github.com/hashicorp/vault-helm/archive/v0.4.0.tar.gz
 ```
 
+### Sidecar injection and configuring the agent
+
+TBD
+
 ## Service Mesh
 
 A service mesh is an infrastructure layer for making service-to-service communication
@@ -160,7 +165,8 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 - Cert-Manager docs [https://cert-manager.io/docs/](https://cert-manager.io/docs/)
 - Consul Reference [https://www.consul.io/docs/platform/k8s/](https://www.consul.io/docs/platform/k8s/)
 - Vault Reference [https://learn.hashicorp.com/vault?track=getting-started-k8s#getting-started-k8s](https://learn.hashicorp.com/vault?track=getting-started-k8s#getting-started-k8s)
-- Injecting Vault Secrets Via Sidecar [https://www.hashicorp.com/blog/injecting-vault-secrets-into-kubernetes-pods-via-a-sidecar/](https://www.hashicorp.com/blog/injecting-vault-secrets-into-kubernetes-pods-via-a-sidecar/)
+- Injecting Vault Secrets Via Sidecar [https://learn.hashicorp.com/vault/getting-started-k8s/sidecar](https://learn.hashicorp.com/vault/getting-started-k8s/sidecar)
+- Vault Agent Sidecar Injector Docs [https://www.vaultproject.io/docs/platform/k8s/injector](https://www.vaultproject.io/docs/platform/k8s/injector)
 - Keycloak Docker page [https://registry.hub.docker.com/r/jboss/keycloak](https://registry.hub.docker.com/r/jboss/keycloak)
 - Gatekeeper Configuration guide [https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter](https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter)
 - ProxyInjector [https://github.com/stakater/ProxyInjector](https://github.com/stakater/ProxyInjector)
