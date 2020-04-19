@@ -8,10 +8,9 @@ kubernetes cluster using minikube.
   - [Minikube on Windows](#minikube-on-windows)
 - [Setting up load balancer](#setting-up-load-balancer)
 - [Setting up ingress](#setting-up-ingress)
-- [Storing secrets](#storing-secrets)
-  - [Consul](#consul)
-  - [Vault](#vault)
-  - [Sidecar injection and configuring the agent](#sidecar-injection-and-configuring-the-agent)
+- [Vault](#vault)
+  - [Installing Vault](#installing-vault)
+  - [Writing Secrets to Vault](#writing-secrets-to-vault)
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [TODO](#todo)
@@ -24,6 +23,24 @@ kubernetes cluster using minikube.
 ```
 minikube start --driver=<hyperv|virtualbox>
 ```
+3. Install helm
+
+```
+$ brew install helm # OSX
+$ snap install helm --classic # Linux Debian-based distros with Snapd
+\> choco install helm // Windows with chocolatey
+```
+
+4. Install vault
+
+```
+$ brew install vault # OSX
+$ snap install vault --classic # Linux Debian-based distros with Snapd
+\> choco install vault // Windows with chocolatey
+```
+
+> ⚠ Helm will be auto-configured to use the kubernetes configuration
+> that is set up when `minikube start` is run
 
 ### Minikube on Windows
 
@@ -60,65 +77,142 @@ Alternatively, the ingress could be controlled using minikube's builtin ingress-
 minikube addons enable ingress
 ```
 
-## Storing Secrets
+## Vault
 
-### Consul
-Consul is a service mesh which launches with a key-value store.
-Vault will use Consul to store secrets.
-Helm is the most recommended way to deploy Consul onto Kubernetes.
-Before Consul can be deployed with Helm, a file, `helm-consul-values.yml` will
-have to be set up in order to pass deployment configuration to Helm.
+Vault is a key-value store which is intended to store
+application secrets. 
+
+### Installing Vault
+
+While there is an
+[official helm chart](https://learn.hashicorp.com/vault/getting-started-k8s/minikube)
+which can be used to install vault onto a kubernetes cluster,
+this tutorial will cover installation of
+[bank-vaults](https://github.com/banzaicloud/bank-vaults).
+bank-vaults is a project maintained by [ banzaicloud ](https://banzaicloud.com/)
+which utilizes Hashicorp Vault for secrets management.
+bank-vaults provides webhooks and direct container injection for vault
+secrets into Kubernetes pods
+
+Install the helm repo
+
+```
+helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
+```
+
+Create the [ vault-infra ](.bank-vaults/vault-infra.yml) namespace.
+
+```
+kubectl create -f vault-infra.yml
+```
+
+Install the vault-infra chart to the vault-infra namespace
+
+```
+helm upgrade --namespace vault-infra --install vault-operator banzaicloud-stable/vault-operator --wait
+```
+
+Create the RBAC and Cluster-Roles on the kubernetes cluster:
+```
+kubectl create -f ./bank-vaults/rbac.yml
+kubectl create -f ./bank-vaults/cr.yml
+```
+
+#### bank-vaults Helm Chart Notes
+
+By default the following options are enabled on vault when the helm chart is installed:
+- Kubernetes authentication (being able to authenticate to vault with a 
+[Kubernetes service account](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/) )
+- PKI
+
+### Writing secrets to vault
+
+Get the unseal key from vault
+
+```sh
+export VAULT_TOKEN=$(kubectl get secrets vault-unseal-keys -o jsonpath={.data.vault.root} | base64 --decode)
+```
+
+> ⚠ Windows users will have to do the following due to base64 not having a Windows equivalent
+>
+> ```ps1
+> kubectl get secrets vault-unseal-keys -o jsonpath="{data.vault.root}" > secrets.txt
+> certutil -decode .\secrets.txt .\decrypted.txt
+> $Env.VAULT_TOKEN=(cat decrypted.txt)
+> ```
+
+Get the ca certificate from Kubernetes
+
+```sh
+kubectl get secret vault-tls -o jsonpath="{.data.ca\.crt}" | base64 --decode > $PWD/vault-ca.crt
+export VAULT_CACERT=$PWD/vault-ca.crt
+```
+
+> ⚠ Windows users will have to do the following due to base64 not having a Windows equivalent
+>
+> ```ps1
+> kubectl get secret vault-tls -o jsonpath="{.data.ca\.crt}" > vault-ca.encrypted.crt
+> certutil -decode .\vault.ca.encrypted.crt .\vault-ca.crt
+> $Env.VAULT_CACERT=$PWD\vault-ca.crt
+> ```
+
+Expose the vault endpoint
+
+```
+kubectl port-forward service/vault 8200 &
+```
+
+Set the vault endpoint as an environment variable
+
+```
+export VAULT_ADDR=https://127.0.0.1:8200 # Linux/OSX
+$Env.VAULT_ADDR="https://127.0.0.1:8200" // Windows - Powershell
+```
+
+Write secrets to vault
+
+```
+vault kv put /path/to/your/secret key=value
+```
+
+### Reading Secrets from Vault
+
+Secrets can be injected into Kubernetes Deployments at runtime by adding annotations
+and setting environment variables in the manifest file.
 
 ```yaml
-global:
-  datacenter: vault-kubernetes-guide
-
-client:
-  enabled: true
-
-server:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-secrets
+spec:
   replicas: 1
-  bootstrapExpect: 1
-  disruptionBudget:
-    maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: hello-secrets
+  template:
+    metadata:
+      labels:
+        app: hello-secrets
+      annotations:
+        vault.security.banzaicloud.io/vault-addr: "https://vault:8200"
+        vault.security.banzaicloud.io/vault-tls-secret: "vault-tls"
+    spec:
+      serviceAccountName: default
+      containers:
+      - name: alpine
+        image: alpine
+        command: ["sh", "-c", "echo $AWS_SECRET_ACCESS_KEY && echo going to sleep... && sleep 10000"]
+        env:
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "vault:secret/data/accounts/aws#AWS_SECRET_ACCESS_KEY"
 ```
 
-Full configuration options for the Consul Helm chart can be found at:
-[https://www.consul.io/docs/platform/k8s/helm.html](https://www.consul.io/docs/platform/k8s/helm.html)
+On your local machine, the `vault` command can be used
 
-Consul can be deployed using Helm
 ```
-helm install consul \
-    --values helm-consul-values.yml \
-    https://github.com/hashicorp/consul-helm/archive/v0.18.0.tar.gz
+vault kv get /path/to/your/secret
 ```
-
-### Vault
-
-Helm is the most recommended way to deploy Vault onto Kubernetes.
-Before Vault can be deployed with Helm, a file, `helm-vault-values.yml` will
-have to be set up in order to pass deployment configuration to Helm.
-
-```yaml
-server:
-  affinity: ""
-  ha:
-    enabled: true
-```
-
-Full configuration options for the Vault Helm chart can be found at:
-[https://www.vaultproject.io/docs/platform/k8s/helm/configuration](https://www.vaultproject.io/docs/platform/k8s/helm/configuration)
-
-Vault can be deployed using Helm
-```
-helm install vault \
-    --values helm-vault-values.yml \
-    https://github.com/hashicorp/vault-helm/archive/v0.4.0.tar.gz
-```
-
-### Sidecar injection and configuring the agent
-
-TBD
 
 ## Service Mesh
 
@@ -146,11 +240,10 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ```
 
 ## TODO
-[//]: # "&#9744; - unchecked   &#9745; - checked   &#8987; - hourglass"
-- &#8987;&nbsp;Set up Vault for storing secrets
-- &#9745;&nbsp;Set up Linkerd for service mesh operations
-- &#9744;&nbsp;Set up cert-manager for managing certificates
-- &#9744;&nbsp;Set up Keycloak for SSO
+- ☑ Set up Vault for storing secrets
+- ☑ Set up Linkerd for service mesh operations
+- ☐ Set up cert-manager for managing certificates
+- ☐ Set up Keycloak for SSO
 
 # References
 - Kubernetes ConfigMap Syntax [https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
@@ -167,6 +260,9 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 - Vault Reference [https://learn.hashicorp.com/vault?track=getting-started-k8s#getting-started-k8s](https://learn.hashicorp.com/vault?track=getting-started-k8s#getting-started-k8s)
 - Injecting Vault Secrets Via Sidecar [https://learn.hashicorp.com/vault/getting-started-k8s/sidecar](https://learn.hashicorp.com/vault/getting-started-k8s/sidecar)
 - Vault Agent Sidecar Injector Docs [https://www.vaultproject.io/docs/platform/k8s/injector](https://www.vaultproject.io/docs/platform/k8s/injector)
+- Inject Secrets Into Pods [https://banzaicloud.com/blog/inject-secrets-into-pods-vault-revisited/](https://banzaicloud.com/blog/inject-secrets-into-pods-vault-revisited/)
+- Vault Webhook with Consul Template [https://banzaicloud.com/blog/vault-webhook-consul-template/](https://banzaicloud.com/blog/vault-webhook-consul-template/)
+- Backing up Vault with [Velero](https://velero.io/) [https://banzaicloud.com/docs/bank-vaults/backup/](https://banzaicloud.com/docs/bank-vaults/backup/)
 - Keycloak Docker page [https://registry.hub.docker.com/r/jboss/keycloak](https://registry.hub.docker.com/r/jboss/keycloak)
 - Gatekeeper Configuration guide [https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter](https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter)
 - ProxyInjector [https://github.com/stakater/ProxyInjector](https://github.com/stakater/ProxyInjector)
