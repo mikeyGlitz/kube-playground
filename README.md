@@ -11,6 +11,7 @@ kubernetes cluster using minikube.
 - [Vault](#vault)
   - [Installing Vault](#installing-vault)
   - [Writing Secrets to Vault](#writing-secrets-to-vault)
+  - [Reading Secrets from Vault](#reading-secrets-from-vault)
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [TODO](#todo)
