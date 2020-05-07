@@ -101,10 +101,10 @@ Install the helm repo
 helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
 ```
 
-Create the [ vault-infra ](.bank-vaults/vault-infra.yml) namespace.
+Create the [ vault-infra ](./bank-vaults/vault-infra.yml) namespace.
 
 ```
-kubectl create -f vault-infra.yml
+kubectl create -f ./bank-vaults/vault-infra.yml
 ```
 
 Install the vault-infra chart to the vault-infra namespace
@@ -117,6 +117,12 @@ Create the RBAC and Cluster-Roles on the kubernetes cluster:
 ```
 kubectl create -f ./bank-vaults/rbac.yml
 kubectl create -f ./bank-vaults/cr.yml
+```
+
+Install the webhook
+
+```
+helm upgrade --namespace vault-infra --install vault-secrets-webhook banzaicloud-stable/vault-secrets-webhook --wait
 ```
 
 #### bank-vaults Helm Chart Notes
@@ -137,9 +143,9 @@ export VAULT_TOKEN=$(kubectl get secrets vault-unseal-keys -o jsonpath={.data.va
 > ⚠ Windows users will have to do the following due to base64 not having a Windows equivalent
 >
 > ```ps1
-> kubectl get secrets vault-unseal-keys -o jsonpath="{data.vault.root}" > secrets.txt
+> kubectl get secrets vault-unseal-keys -o jsonpath="{data.vault-root}" > secrets.txt
 > certutil -decode .\secrets.txt .\decrypted.txt
-> $Env.VAULT_TOKEN=(cat decrypted.txt)
+> $Env:VAULT_TOKEN=(cat decrypted.txt)
 > ```
 
 Get the ca certificate from Kubernetes
@@ -154,7 +160,7 @@ export VAULT_CACERT=$PWD/vault-ca.crt
 > ```ps1
 > kubectl get secret vault-tls -o jsonpath="{.data.ca\.crt}" > vault-ca.encrypted.crt
 > certutil -decode .\vault.ca.encrypted.crt .\vault-ca.crt
-> $Env.VAULT_CACERT=$PWD\vault-ca.crt
+> $Env:VAULT_CACERT=$PWD\vault-ca.crt
 > ```
 
 Expose the vault endpoint
@@ -167,7 +173,7 @@ Set the vault endpoint as an environment variable
 
 ```
 export VAULT_ADDR=https://127.0.0.1:8200 # Linux/OSX
-$Env.VAULT_ADDR="https://127.0.0.1:8200" // Windows - Powershell
+$Env:VAULT_ADDR="https://127.0.0.1:8200" // Windows - Powershell
 ```
 
 Write secrets to vault
