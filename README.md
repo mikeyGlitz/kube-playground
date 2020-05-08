@@ -179,7 +179,7 @@ $Env:VAULT_ADDR="https://127.0.0.1:8200" // Windows - Powershell
 Write secrets to vault
 
 ```
-vault kv put /path/to/your/secret key=value
+vault kv put secret/path/to/your/secret key=value
 ```
 
 ### Reading Secrets from Vault
@@ -212,7 +212,7 @@ spec:
         command: ["sh", "-c", "echo $AWS_SECRET_ACCESS_KEY && echo going to sleep... && sleep 10000"]
         env:
         - name: AWS_SECRET_ACCESS_KEY
-          value: "vault:secret/data/accounts/aws#AWS_SECRET_ACCESS_KEY"
+          value: "vault:secret/data/path/to/your/secret#secret_key"
 ```
 
 On your local machine, the `vault` command can be used
@@ -220,6 +220,22 @@ On your local machine, the `vault` command can be used
 ```
 vault kv get /path/to/your/secret
 ```
+
+> ⚠ The vault webhook is very finnicky about how it parses vault secret tokens
+> Names should only have alphanumeric characters and underscores (_).
+> I've tried to create secrets with periods (.) in the keys and they wouldn't populate
+> in the container.
+> ```
+> vault:secret/data/[path]#[key]
+> ```
+
+> ⚠ only deploy rbac and cr yaml files to the default namespace.
+> Attempting to start any of these services to other namespaces causes them to
+> not create vault pods which are used to store secrets
+
+Secrets stored in environment variables will not show up using `kubectl exec`.
+The secret values are substituted during container runtime using a sidecar pod
+`vault-env`.
 
 ## Service Mesh
 
@@ -249,8 +265,8 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ## TODO
 - ☑ Set up Vault for storing secrets
 - ☑ Set up Linkerd for service mesh operations
-- ☐ Set up cert-manager for managing certificates
 - ☐ Set up Keycloak for SSO
+- ☐ Set up cert-manager for managing certificates
 
 # References
 - Kubernetes ConfigMap Syntax [https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
@@ -268,7 +284,9 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 - Injecting Vault Secrets Via Sidecar [https://learn.hashicorp.com/vault/getting-started-k8s/sidecar](https://learn.hashicorp.com/vault/getting-started-k8s/sidecar)
 - Vault Agent Sidecar Injector Docs [https://www.vaultproject.io/docs/platform/k8s/injector](https://www.vaultproject.io/docs/platform/k8s/injector)
 - Inject Secrets Into Pods [https://banzaicloud.com/blog/inject-secrets-into-pods-vault-revisited/](https://banzaicloud.com/blog/inject-secrets-into-pods-vault-revisited/)
+- bank-vaults Operator Helm chart [https://github.com/banzaicloud/bank-vaults/tree/master/charts/vault](https://github.com/banzaicloud/bank-vaults/tree/master/charts/vault)
 - Vault Webhook with Consul Template [https://banzaicloud.com/blog/vault-webhook-consul-template/](https://banzaicloud.com/blog/vault-webhook-consul-template/)
+- Mutating Webhook [https://banzaicloud.com/docs/bank-vaults/mutating-webhook/](https://banzaicloud.com/docs/bank-vaults/mutating-webhook/)
 - Backing up Vault with [Velero](https://velero.io/) [https://banzaicloud.com/docs/bank-vaults/backup/](https://banzaicloud.com/docs/bank-vaults/backup/)
 - Keycloak Docker page [https://registry.hub.docker.com/r/jboss/keycloak](https://registry.hub.docker.com/r/jboss/keycloak)
 - Gatekeeper Configuration guide [https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter](https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter)
