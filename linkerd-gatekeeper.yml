@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dashboard-proxy-keys
+  annotations:
+    vault.security.banzaicloud.io/vault-addr: "https://vault.default.svc.cluster.local:8200"
+    vault.security.banzaicloud.io/vault-role: "default"
+    vault.security.banzaicloud.io/vault-path: "kubernetes"
+    vault.security.banzaicloud.io/vault-skip-verify: "true"
+type: Opaque
+stringData:
+  CLIENT_SECRET: vault:secret/data/kube/dash/client#client_id
+  ENCRYPTION_KEY: vault:secret/data/kube/dash/client#encryption_key
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-proxy-config
+data:
+  gatekeeper.yaml: |-
+    client-id: 'dashboard-gatekeeper'
+    discovery-url: http://192.168.0.240/auth/realms/hausnet
+    skip-upstream-tls-verify: false
+    skip-openid-provider-tls-verify: true
+    listen: ':3000'
+    secure-cookie: false
+    enable-logging: true
+    enable-json-logging: true
+    enable-default-deny: true
+    enable-refresh-tokens: true
+    enable-session-cookies: true
+    debug: true
+    ingress.enabled: true
+    redirection-url: http://cluster.local.net
+    upstream-url: http://linkerd-web.linkerd.svc.cluster.local:8084/
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-gatekeeper
+spec:
+  selector:
+    matchLabels:
+      app: dashboard-gatekeeper
+  template:
+    metadata:
+      labels:
+        app: dashboard-gatekeeper
+      # annotations:
+      #   vault.security.banzaicloud.io/vault-addr: "https://vault.default.svc.cluster.local:8200"
+      #   vault.security.banzaicloud.io/vault-tls-secret: "vault-tls"
+    spec:
+      hostAliases:
+        - ip: "192.168.0.240"
+          hostnames:
+            - auth.local.net
+      containers:
+      - name: dashboard-gatekeeper
+        image: bitnami/keycloak-gatekeeper:9
+        # image: keycloak/keycloak-gatekeeper:7.0.0
+        ports:
+        - containerPort: 3000
+        env:
+          - name: CLIENT_SECRET
+            valueFrom:
+                secretKeyRef:
+                  key: CLIENT_SECRET
+                  name: dashboard-proxy-keys
+          - name: ENCRYPTION_KEY
+            valueFrom:
+                secretKeyRef:
+                  key: ENCRYPTION_KEY
+                  name: dashboard-proxy-keys
+        args:
+          - /keycloak-gatekeeper
+          - --config=/etc/secrets/gatekeeper.yaml
+          - --client-secret=$(CLIENT_SECRET)
+          - --encryption-key=$(ENCRYPTION_KEY)
+          - --resources=uri=/*
+        volumeMounts:
+          - name: gatekeeper-secrets
+            mountPath: /etc/secrets
+      volumes:
+        - name: gatekeeper-secrets
+          configMap:
+              name: dashboard-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-gatekeeper
+spec:
+  selector:
+    app: dashboard-gatekeeper
+  ports:
+  - port: 3000
+    targetPort: 3000
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: dashboard-gatekeeper
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: "/"
+  #   nginx.ingress.kubernetes.io/upstream-vhost: $service_name.$namespace.svc.cluster.local:8084
+  #   nginx.ingress.kubernetes.io/configuration-snippet: |
+  #     proxy_set_header Origin "";
+  #     proxy_hide_header l5d-remote-ip;
+  #     proxy_hide_header l5d-server-id;
+spec:
+  rules:
+    - host: cluster.local.net
+      http:
+        paths:
+          - path: /
+            backend:
+                serviceName: dashboard-gatekeeper
+                servicePort: 3000

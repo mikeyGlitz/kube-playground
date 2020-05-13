@@ -12,6 +12,10 @@ kubernetes cluster using minikube.
   - [Installing Vault](#installing-vault)
   - [Writing Secrets to Vault](#writing-secrets-to-vault)
   - [Reading Secrets from Vault](#reading-secrets-from-vault)
+- [Single-Sign-On](#single-sign-on)
+  - [Setting up the Keycloak stack](#setting-up-the-keycloak-stack)
+  - [Configuring Keycloak](#configuring-keycloak)
+  - [Protecting Resources with Gatekeeper](#protecting-resources-with-gatekeeper)
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [TODO](#todo)
@@ -229,13 +233,139 @@ vault kv get /path/to/your/secret
 > vault:secret/data/[path]#[key]
 > ```
 
-> ⚠ only deploy rbac and cr yaml files to the default namespace.
+> ⚠ Only deploy rbac and cr yaml files to the default namespace.
 > Attempting to start any of these services to other namespaces causes them to
 > not create vault pods which are used to store secrets
 
 Secrets stored in environment variables will not show up using `kubectl exec`.
 The secret values are substituted during container runtime using a sidecar pod
 `vault-env`.
+
+> ⚠ When injecting Vault secrets into a Kubernetes Secret, the annotations
+> `vault.security.banzaicloud.io/vault-path: "kubernetes"` and
+> `vault.security.banzaicloud.io/vault-skip-verify: "true"` will have to be added.
+> Using TLS to request secrets times out and the pod attempts to resolve the
+> secret which causes problems when the application tries to run.
+
+## Single-Sign-On
+
+Single Sign On (SSO) in this cluster is managed with [Keycloak](keycloak.org).
+Keycloak is an identity management service which is sponsored by RedHat and powered
+by JBoss. Keycloak is well-documented and has ready-made containers for a Kubernetes
+Cluster. Keycloak also supports Vault-based authentication.
+
+### Setting up the Keycloak Stack
+
+There are two components to the Keycloak stack: A database, and the Keycloak application.
+For the database, this example will utilize Postgres due to its performance and its reliability.
+
+Postgres is is intended to be installed using the
+[helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql).
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+```
+
+Helm allows supplying arguments using variables files.
+There is a [variables file](./postgres-values.yml) prepared
+which contains configuration to set the Postgres username and password
+using Vault secrets and annotates the deployment using bank-vaults annotations.
+
+Installation of the chart can be handled by creating the Keycloak namespace and
+running `helm install`.
+
+```bash
+kubectl create ns keycloak
+helm install --namespace keycloak db bitnami/postgresql -f ./keycloak-values.yml
+```
+
+After running Helm, the Postgresql will be installed an running on the cluster.
+
+[keycloak.yml](./keycloak.yml) contains a kubernetes manifest which can be used to
+create the keycloak application deployment and service.
+
+```bash
+kubectl create -f keycloak.yml
+```
+
+[keycloak-ingress.yml](./keycloak-ingress.yml) creates the Kubernetes ingress object
+which can be used to access the keycloak application deployment from outside the 
+Kubernetes cluster.
+
+```bash
+kubectl create -f keycloak-ingress.yml
+```
+
+At this point, a Keycloak stack should be deployed and Keycloak can be accessed through a
+web browser (startup time typically takes about a minute).
+
+![Keycloak Dashboard](./screenshots/keycloak-dashboard.png)
+
+### Configuring Keycloak
+
+In order to use Keycloak's SSO features, an OpenID-Connect Realm will need to be set up
+
+![Add Realm](./screenshots/add-realm.png)
+
+A client needs to be created in the realm
+
+![Create Client](./screenshots/create-client.png)
+
+Give the client a name and set the following values:
+
+| Setting               | Value                                                            |
+|-----------------------|------------------------------------------------------------------|
+| Access Type           | Confidential                                                     |
+| Authorization Enabled | ON                                                               |
+| Valid Redirect URIs   | http:// URL where you want Keycloak to redirect to after sign-on |
+
+Once the client is created, a Client Scope needs to be created
+
+![Create Client Scope](./screenshots/create-client-scope.png)
+
+Give the client scope a name, save it, and select the _Mappers_ tab.
+Create a new mapper
+
+![Create Mapper](./screenshots/new-mapper.png)
+
+Select the following values for the mapper:
+
+| Setting                  | Value                                 |
+|--------------------------|---------------------------------------|
+| Mapper Type              | Audience                              |
+| Included Client Audience | Client you created in a previous step |
+
+Go back into the client created earlier and set add the new scope to the default scopes for the
+client.
+
+![Scopes](./screenshots/scopes.png)
+
+### Protecting Resources with Gatekeeper
+
+The Keycloak project provides a proxy service which will require users to sign on using
+Keycloak before attempting to access the site. The proxy service is called
+[Keycloak Gatekeeper](https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter).
+
+[linkerd-gatekeeper.yml](./linkerd-gatekeeper.yml) provides an example of how to secure
+ingresses using Keycloak Gatekeeper. The realm and client in use by keycloak-gatekeeper were
+set up during the previous section.
+
+An encryption key can be generated by the following command:
+
+```bash
+cat /proc/sys/kernel/random/uuid | sed 's/-//g'
+```
+
+> ⚠ Proxy configuration can be impacted by the following Nginx annotations
+> ```yaml
+> nginx.ingress.kubernetes.io/upstream-vhost: $service_name.$namespace.svc.cluster.local:port
+>     nginx.ingress.kubernetes.io/configuration-snippet: |
+>       proxy_set_header Origin "";
+>       proxy_hide_header l5d-remote-ip;
+>       proxy_hide_header l5d-server-id;
+> ```
+>
+> When I added these annotations, I got stuck in an infinite redirect loop
 
 ## Service Mesh
 
@@ -265,7 +395,7 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ## TODO
 - ☑ Set up Vault for storing secrets
 - ☑ Set up Linkerd for service mesh operations
-- ☐ Set up Keycloak for SSO
+- ☑ Set up Keycloak for SSO
 - ☐ Set up cert-manager for managing certificates
 
 # References
@@ -290,5 +420,9 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 - Backing up Vault with [Velero](https://velero.io/) [https://banzaicloud.com/docs/bank-vaults/backup/](https://banzaicloud.com/docs/bank-vaults/backup/)
 - Keycloak Docker page [https://registry.hub.docker.com/r/jboss/keycloak](https://registry.hub.docker.com/r/jboss/keycloak)
 - Gatekeeper Configuration guide [https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter](https://www.keycloak.org/docs/latest/securing_apps/#_keycloak_generic_adapter)
+- Secure Services with Keycloak Gatekeeper [https://dev.to/techworld_with_nana/how-to-setup-a-keycloak-gatekeeper-to-secure-the-services-in-your-kubernetes-cluster-5d2d](https://dev.to/techworld_with_nana/how-to-setup-a-keycloak-gatekeeper-to-secure-the-services-in-your-kubernetes-cluster-5d2d)
+- Keycloak Audience Setup [https://stackoverflow.com/questions/53550321/keycloak-gatekeeper-aud-claim-and-client-id-do-not-match](https://stackoverflow.com/questions/53550321/keycloak-gatekeeper-aud-claim-and-client-id-do-not-match)
+- Keycloak Gatekeeper Documentation [https://www.keycloak.org/docs/latest/securing_apps/#example-usage-and-configuration](https://www.keycloak.org/docs/latest/securing_apps/#example-usage-and-configuration)
+- Keycloak Bitnami Image [https://hub.docker.com/r/bitnami/keycloak-gatekeeper](https://hub.docker.com/r/bitnami/keycloak-gatekeeper)
 - ProxyInjector [https://github.com/stakater/ProxyInjector](https://github.com/stakater/ProxyInjector)
 - ProxyInject SSO with Keycloak in Kubernetes [https://medium.com/stakater/proxy-injector-enabling-sso-with-keycloak-on-kubernetes-a1012c3d9f8d](https://medium.com/stakater/proxy-injector-enabling-sso-with-keycloak-on-kubernetes-a1012c3d9f8d)

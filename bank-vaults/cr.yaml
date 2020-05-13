@@ -73,7 +73,15 @@ spec:
     # Override the default Ingress specification here
     # This follows the same format as the standard Kubernetes Ingress
     # See: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.13/#ingressspec-v1beta1-extensions
-    spec: {}
+    spec: 
+      rules:
+        - host: vault.local.net
+          http:
+            paths:
+              - path: /
+                backend:
+                    serviceName: vault
+                    servicePort: 8200
 
   # Use local disk to store Vault file data, see config section.
   volumes:
