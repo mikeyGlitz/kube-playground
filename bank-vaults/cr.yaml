@@ -178,23 +178,25 @@ spec:
     # See https://www.vaultproject.io/docs/secrets/kv/index.html for more information.
     startupSecrets:
       - type: kv
-        path: secret/data/accounts/aws
+        path: secret/data/keycloak/database/password
         data:
           data:
-            AWS_ACCESS_KEY_ID: secretId
-            AWS_SECRET_ACCESS_KEY: s3cr3t
+            db_password: keycloak
       - type: kv
-        path: secret/data/dockerrepo
+        path: secret/data/keycloak/database/user
         data:
           data:
-            DOCKER_REPO_USER: dockerrepouser
-            DOCKER_REPO_PASSWORD: dockerrepopassword
+            db_user: keycloak
       - type: kv
-        path: secret/data/mysql
+        path: secret/data/keycloak/application/password
         data:
           data:
-            MYSQL_ROOT_PASSWORD: s3cr3t
-            MYSQL_PASSWORD: 3xtr3ms3cr3t
+            app_password: keycloak
+      - type: kv
+        path: secret/data/keycloak/application/user
+        data:
+          data:
+            app_user: keycloak
 
   vaultEnvsConfig:
     - name: VAULT_LOG_LEVEL

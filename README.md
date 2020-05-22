@@ -281,6 +281,27 @@ helm install --namespace keycloak db bitnami/postgresql -f ./keycloak-values.yml
 
 After running Helm, the Postgresql will be installed an running on the cluster.
 
+> ⚠ When running Keycloak using the `bank-vaults` annotations, the Keycloak server
+> may fail to initialize due to the vault services not being set up before Keycloak
+> attempts to start.
+>
+> Delete the `vault-tls` secret from the `keycloak` namespace
+>
+> ```
+> kubectl delete secret vault-tls -n keycloak
+> ```
+>
+> Delete the pods from the `keycloak` namespace
+>
+> ```
+> kubectl delete po db_postgresql_0 -n keycloak
+> kubectl delete po keycloak -n keycloak
+> ```
+>
+> Since the pods are managed by the deployment, Kubernetes will automatically bring
+> up new pods. The pods will start. The data is persisted on PersistentVolumes so
+> they will not be deleted.
+
 [keycloak.yml](./keycloak.yml) contains a kubernetes manifest which can be used to
 create the keycloak application deployment and service.
 

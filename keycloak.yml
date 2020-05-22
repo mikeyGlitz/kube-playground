@@ -78,8 +78,6 @@ kind: Deployment
 metadata:
   name: keycloak
   namespace: keycloak
-  annotations:
-    linkerd.io/inject: enabled
 spec:
   selector:
     matchLabels:

@@ -9,9 +9,9 @@ metadata:
     vault.security.banzaicloud.io/vault-skip-verify: "true"
 type: Opaque
 stringData:
-  CLIENT_ID: vault:secret/data/linkerd/dash/client/id#client_id
-  CLIENT_SECRET: vault:secret/data/linkerd/dash/client/secret#client_secret
-  ENCRYPTION_KEY: vault:secret/data/linkerd/dash/client/encryption#encryption_key
+  CLIENT_ID: vault:secret/data/tracing/client/id#client_id
+  CLIENT_SECRET: vault:secret/data/tracing/client/secret#client_secret
+  ENCRYPTION_KEY: vault:secret/data/tracing/client/encryption#encryption_key
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -31,8 +31,8 @@ data:
     enable-session-cookies: true
     debug: true
     ingress.enabled: true
-    redirection-url: http://mesh.local.net
-    upstream-url: http://linkerd-web.linkerd.svc.cluster.local:8084/
+    redirection-url: http://tracing.local.net
+    upstream-url: http://jaeger.tracing.svc.cluster.local:16686/
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -51,7 +51,7 @@ spec:
       #   vault.security.banzaicloud.io/vault-tls-secret: "vault-tls"
     spec:
       hostAliases:
-        - ip: "192.168.0.240"
+        - ip: "192.168.0.111"
           hostnames:
             - auth.local.net
       containers:
@@ -115,7 +115,7 @@ metadata:
   #     proxy_hide_header l5d-server-id;
 spec:
   rules:
-    - host: mesh.local.net
+    - host: tracing.local.net
       http:
         paths:
           - path: /
