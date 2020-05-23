@@ -23,6 +23,7 @@ kubernetes cluster using minikube.
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
 - [Serverless With Kubeless](#serverless-with-kubeless)
+- [Elastic Stack](#elastic-stack)
 - [References](#references)
 
 ## Prerequisites
@@ -560,6 +561,65 @@ kubectl apply -f https://run.linkerd.io/tracing/collector.yml
 kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ```
 
+## Kafka
+
+Apache Kafka is is a streaming platform which is used for publishing and subscribing
+records similar to a message queueing service.
+
+banzaicloud provides a [Kafka Operator](https://banzaicloud.com/docs/supertubes/kafka-operator/)
+which makes provisioning Kafka easier for Kubernetes clusters
+
+###  Installing Kafka Operator
+
+Create a namespace for zookeeper
+
+```
+kubectl create ns zookeeper
+```
+
+Install Zookeeper
+
+```
+helm install zookeeper-operator --namespace=zookeeper banzaicloud-stable/zookeeper-operator
+```
+
+Install CRDs for Prometheus Operator
+
+```
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_alertmanagers.yaml
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_prometheuses.yaml
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_prometheusrules.yaml
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_podmonitors.yaml
+kubectl apply -f https://raw.githubusercontent.com/coreos/prometheus-operator/master/example/prometheus-operator-crd/monitoring.coreos.com_thanosrulers.yaml
+```
+
+Install [Prometheus Operator](https://github.com/helm/charts/tree/master/stable/prometheus-operator)
+using Helm
+
+```
+helm install test --namespace default stable/prometheus-operator
+```
+
+Install Kafka Operator helm chart
+
+```
+kubectl create -n kafka
+helm install kafka-operator --namespace=kafka banzaicloud-stable/kafka-operator
+```
+
+Create a Prometheus Service Monitor
+
+```
+kubectl create -n kafka -f https://github.com/banzaicloud/kafka-operator/raw/master/config/samples/kafkacluster-prometheus.yaml
+```
+
+Create a Kafka instance with the zookeeeper instance
+
+```
+kubectl create -n kafka -f https://github.com/banzaicloud/kafka-operator/raw/master/config/samples/simplekafkacluster.yaml
+```
+
 ## Serverless With Kubeless
 
 Kubeless is a serverless framework which allows you to deploy
@@ -584,6 +644,55 @@ kubectl create -f https://raw.githubusercontent.com/kubeless/kubeless-ui/master/
 A [serverless plugin](https://www.serverless.com/framework/docs/providers/kubeless/guide/intro/) for kubeless can help with deploying
 functions to Kubernetes
 
+## Elastic Stack
+
+Elastic has an operator which can be used to provision instances of Elastic Stack, Elastic Cloud for Kubernetes (ECK)
+applications using the [Kubernetes Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/). 
+
+To install ECK, install the following manifest onto your cluster
+
+```
+kubectl apply -f https://download.elastic.co/downloads/eck/1.1.1/all-in-one.yaml
+```
+
+After the install is completed, the ECK operator and Custom Resource Definitions (CRD) will be installed on Kuberntes.
+
+ECK defines 2 CRDs: `Elasticsearch` and `Kibana`.
+
+Provision an Elasticsearch cluster
+
+```yaml
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: quickstart
+spec:
+  version: 7.7.0
+  nodeSets:
+  - name: default
+    count: 1
+    config:
+      node.master: true
+      node.data: true
+      node.ingest: true
+      node.store.allow_mmap: false
+```
+
+Provision a Kibana instance
+
+```yaml
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: quickstart
+spec:
+  version: 7.7.0
+  count: 1
+  elasticsearchRef:
+    name: quickstart
+```
+
+[ECK Reference](https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html)
 
 # References
 - Kubernetes ConfigMap Syntax [https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
@@ -616,3 +725,7 @@ functions to Kubernetes
 - Kubeless runtimes [https://kubeless.io/docs/runtimes/](https://kubeless.io/docs/runtimes/)
 - Kubeless Expose Functions [https://kubeless.io/docs/http-triggers/](https://kubeless.io/docs/http-triggers/)
 - Kubeless UI [https://github.com/kubeless/kubeless-ui](https://github.com/kubeless/kubeless-ui)
+- Elastic Cloud for Kubernetes [https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html](https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html)
+- Kafka Operator [https://banzaicloud.com/docs/supertubes/kafka-operator/](https://banzaicloud.com/docs/supertubes/kafka-operator/)
+- Install Kafka Operator [https://banzaicloud.com/docs/supertubes/kafka-operator/install-kafka-operator/](https://banzaicloud.com/docs/supertubes/kafka-operator/install-kafka-operator/)
+- Kubeless existing Kafka [https://kubeless.io/docs/use-existing-kafka/](https://kubeless.io/docs/use-existing-kafka/)
