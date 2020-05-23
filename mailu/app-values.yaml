@@ -1,0 +1,18 @@
+hostnames:
+  - mail.local.net
+domain: local.net
+certmanager:
+  issuerName: selfsigned-issuer
+clamav:
+  enabled: false
+secretKey: vault:secret/data/mailu/application/encryption#encryption_key
+database:
+  type: mysql
+  mysql:
+    database: mailu
+    password: vault:secret/data/mailu/database/password#db_password
+    user: vault:secret/data/mailu/database/user#db_user
+initialAccount:
+    password: vault:secret/data/mailu/application/password#app_password
+    username: vault:secret/data/mailu/application/user#app_user
+    domain: local.net

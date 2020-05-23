@@ -1,0 +1,20 @@
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: vault-tls
+spec:
+  commonName: vault
+  usages:
+    - server auth
+  dnsNames:
+    - vault
+    - vault.default
+    - vault.default.svc
+    - vault.default.svc.cluster.local
+  ipAddresses:
+    - 127.0.0.1
+    - 192.168.0.110
+  secretName: vault-cert-tls
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer

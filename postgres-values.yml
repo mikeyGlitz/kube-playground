@@ -7,6 +7,7 @@ master:
   podAnnotations: &annotations
     'vault.security.banzaicloud.io/vault-tls-secret': vault-tls
     'vault.security.banzaicloud.io/vault-addr': 'https://vault.default.svc.cluster.local:8200'
+    'vault.security.banzaicloud.io/vault-role': 'default'
 slave:
   podAnnotations:
     <<: *annotations

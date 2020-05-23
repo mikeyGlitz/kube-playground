@@ -9,9 +9,9 @@ metadata:
     vault.security.banzaicloud.io/vault-skip-verify: "true"
 type: Opaque
 stringData:
-  CLIENT_ID: vault:secret/data/tracing/client/id#client_id
-  CLIENT_SECRET: vault:secret/data/tracing/client/secret#client_secret
-  ENCRYPTION_KEY: vault:secret/data/tracing/client/encryption#encryption_key
+  CLIENT_ID: vault:secret/data/cluster/client/id#client_id
+  CLIENT_SECRET: vault:secret/data/cluster/client/secret#client_secret
+  ENCRYPTION_KEY: vault:secret/data/cluster/client/encryption#encryption_key
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -20,7 +20,6 @@ metadata:
 data:
   gatekeeper.yaml: |-
     discovery-url: https://auth.local.net/auth/realms/localnet
-    skip-upstream-tls-verify: false
     skip-openid-provider-tls-verify: true
     listen: ':3000'
     secure-cookie: false
@@ -31,8 +30,10 @@ data:
     enable-session-cookies: true
     debug: true
     ingress.enabled: true
-    redirection-url: https://tracing.local.net
-    upstream-url: http://jaeger.tracing.svc.cluster.local:16686/
+    redirection-url: https://cluster.local.net
+    skip-upstream-tls-verify: true
+    enable-authorization-header: false
+    upstream-url: https://kubernetes-dashboard.kubernetes-dashboard.svc.cluster.local/
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -107,12 +108,12 @@ spec:
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
-  name: tracing-cert
+  name: cluster-cert
 spec:
-  secretName: tracing-tls
+  secretName: cluster-tls
   commonName: mesh
   dnsNames:
-    - tracing.local.net
+    - cluster.local.net
   ipAddresses:
     - 192.168.0.111
     - 127.0.0.1
@@ -130,7 +131,7 @@ metadata:
       grpc_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
 spec:
   rules:
-    - host: tracing.local.net
+    - host: cluster.local.net
       http:
         paths:
           - path: /
@@ -139,6 +140,6 @@ spec:
                 servicePort: 3000
   tls:
     - hosts:
-      - tracing.local.net
-      secretName: tracing-tls
+      - cluster.local.net
+      secretName: cluster-tls
 

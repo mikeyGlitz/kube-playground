@@ -19,7 +19,7 @@ metadata:
   name: dashboard-proxy-config
 data:
   gatekeeper.yaml: |-
-    discovery-url: http://192.168.0.111/auth/realms/localnet
+    discovery-url: https://auth.local.net/auth/realms/localnet
     skip-upstream-tls-verify: false
     skip-openid-provider-tls-verify: true
     listen: ':3000'
@@ -31,7 +31,7 @@ data:
     enable-session-cookies: true
     debug: true
     ingress.enabled: true
-    redirection-url: http://functions.local.net
+    redirection-url: https://lambda.local.net
     upstream-url: http://ui.kubeless.svc.cluster.local:3000/
 ---
 apiVersion: apps/v1
@@ -44,6 +44,8 @@ spec:
       app: dashboard-gatekeeper
   template:
     metadata:
+      annotations:
+        linkerd.io/inject: enabled
       labels:
         app: dashboard-gatekeeper
       # annotations:
@@ -102,23 +104,40 @@ spec:
   - port: 3000
     targetPort: 3000
 ---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: lambda-cert
+spec:
+  secretName: lambda-tls
+  commonName: mesh
+  dnsNames:
+    - lambda.local.net
+  ipAddresses:
+    - 192.168.0.111
+    - 127.0.0.1
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+---
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: dashboard-gatekeeper
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: "/"
-  #   nginx.ingress.kubernetes.io/upstream-vhost: $service_name.$namespace.svc.cluster.local:8084
-  #   nginx.ingress.kubernetes.io/configuration-snippet: |
-  #     proxy_set_header Origin "";
-  #     proxy_hide_header l5d-remote-ip;
-  #     proxy_hide_header l5d-server-id;
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
+      grpc_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
 spec:
   rules:
-    - host: functions.local.net
+    - host: lambda.local.net
       http:
         paths:
           - path: /
             backend:
                 serviceName: dashboard-gatekeeper
                 servicePort: 3000
+  tls:
+    - hosts:
+      - lambda.local.net
+      secretName: lambda-tls

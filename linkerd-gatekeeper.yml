@@ -19,7 +19,7 @@ metadata:
   name: dashboard-proxy-config
 data:
   gatekeeper.yaml: |-
-    discovery-url: http://192.168.0.111/auth/realms/localnet
+    discovery-url: https://auth.local.net/auth/realms/localnet
     skip-upstream-tls-verify: false
     skip-openid-provider-tls-verify: true
     listen: ':3000'
@@ -28,10 +28,10 @@ data:
     enable-json-logging: true
     enable-default-deny: true
     enable-refresh-tokens: true
-    enable-session-cookies: true
+    enable-authorization-header: false
     debug: true
     ingress.enabled: true
-    redirection-url: http://mesh.local.net
+    redirection-url: https://mesh.local.net
     upstream-url: http://linkerd-web.linkerd.svc.cluster.local:8084/
 ---
 apiVersion: apps/v1
@@ -102,17 +102,30 @@ spec:
   - port: 3000
     targetPort: 3000
 ---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: linkerd-cert
+spec:
+  secretName: linkerd-tls
+  commonName: mesh
+  dnsNames:
+    - mesh.local.net
+  ipAddresses:
+    - 192.168.0.111
+    - 127.0.0.1
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+---
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: dashboard-gatekeeper
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: "/"
-  #   nginx.ingress.kubernetes.io/upstream-vhost: $service_name.$namespace.svc.cluster.local:8084
-  #   nginx.ingress.kubernetes.io/configuration-snippet: |
-  #     proxy_set_header Origin "";
-  #     proxy_hide_header l5d-remote-ip;
-  #     proxy_hide_header l5d-server-id;
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
+      grpc_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
 spec:
   rules:
     - host: mesh.local.net
@@ -120,5 +133,11 @@ spec:
         paths:
           - path: /
             backend:
+                # serviceName: linkerd-web
+                # servicePort: 8084
                 serviceName: dashboard-gatekeeper
                 servicePort: 3000
+  tls:
+    - hosts:
+      - mesh.local.net
+      secretName: linkerd-tls

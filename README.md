@@ -8,6 +8,10 @@ kubernetes cluster using minikube.
   - [Minikube on Windows](#minikube-on-windows)
 - [Setting up load balancer](#setting-up-load-balancer)
 - [Setting up ingress](#setting-up-ingress)
+- [Managing Certificates](#managing-certificates)
+  - [Installing cert-manager](#installing-cert-manager)
+  - [Creating Certificates](#creating-certificates)
+  - [Securing Ingresses](#securing-ingresses)
 - [Vault](#vault)
   - [Installing Vault](#installing-vault)
   - [Writing Secrets to Vault](#writing-secrets-to-vault)
@@ -18,7 +22,7 @@ kubernetes cluster using minikube.
   - [Protecting Resources with Gatekeeper](#protecting-resources-with-gatekeeper)
 - [Service Mesh](#service-mesh)
   - [Setting up distributed tracing](#setting-up-distributed-tracing)
-- [TODO](#todo)
+- [Serverless With Kubeless](#serverless-with-kubeless)
 - [References](#references)
 
 ## Prerequisites
@@ -80,6 +84,104 @@ Alternatively, the ingress could be controlled using minikube's builtin ingress-
 
 ```
 minikube addons enable ingress
+```
+
+## Managing Certificates
+
+[ cert-manager ](https://cert-manager.io/) is a cloud-native
+application which is used to manage and generate secrets for
+Kuberetes. cert-manager exposes CustomResourceDefinitions to make
+certificate management easier. Multiple certificate issuers are
+supported such as Let's Encrypt, self-signed, Certificate Authority
+and Vault.
+
+### Installing cert-manager
+
+Cert Manager can be installed using the
+[helm chart](https://cert-manager.io/docs/installation/kubernetes/#installing-with-helm).
+
+```
+kubectl create namespace cert-manager
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --set installCRDs=true
+```
+
+An issuer will have to be created in order to start issuing 
+certificates. The example below shows how to set a
+self-signed ClusterIssuer for development purposes
+
+```yaml
+apiVersion: cert-manager.io/v1alpha2
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+  namespace: cert-manager
+spec:
+  selfSigned: {}
+```
+
+### Creating Certificates
+
+cert-manager defines a CustomResourceDefinition for certificates
+Certificates will automatically be generated and signed against
+the root certificates stored in the designated issuer.
+
+A certificate definition is defined in the example below:
+
+```yaml
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: example-com
+spec:
+  secretName: example-com-tls
+  dnsNames:
+    - example.com
+    - www.example.com
+  issuerRef:
+    name: selfsigned-issuer
+    # We can reference ClusterIssuers by changing the kind here.
+    # The default value is Issuer (i.e. a locally namespaced Issuer)
+    kind: ClusterIssuer
+```
+
+> ℹ cert-manager will automatically create the certificate
+> and store it in the secret designated by the `secretName` key.
+> In this case, the key is stored in a secret called `example-com-tls`
+
+### Securing Ingresses
+
+Ingresses can be secured with certificates created with
+certificate-manager. After being secured with a certificate, the
+ingress will perform automatic TLS redirection.
+
+Securing ingresses can be performed by adding the tls section to
+the ingress manfiest. The example uses certificates defined in
+the previous examples.
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    # add an annotation indicating the issuer to use.
+    cert-manager.io/cluster-issuer: nameOfClusterIssuer
+  name: myIngress
+  namespace: myIngress
+spec:
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - backend:
+          serviceName: myservice
+          servicePort: 80
+        path: /
+  tls: # < placing a host in the TLS config will indicate a certificate should be created
+  - hosts:
+    - example.com
+    secretName: example-com-tls # < cert-manager will store the created certificate in this secret.
 ```
 
 ## Vault
@@ -402,6 +504,51 @@ Install the linkerd mesh with the following command.
 linkerd install | kubectl apply -f -
 ```
 
+To use Linkerd with applications, you can add the linkerd inject
+annotation to either a `namespace` or a `deployment`.
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-namespace
+  annotations:
+    linkerd.io/inject: enabled
+```
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+  matchLabels:
+    app: my-deployment
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        app: my-deployment
+    spec:
+      ...
+```
+
+Linkerd also supports injecting through the Linkerd CLI.
+
+```
+linkerd inject my-deployment.yaml | kubectl create -f -
+```
+
+To use linkerd with Ingress, the following annotation needs
+to be added to the Ingress:
+
+```yaml
+nginx.ingress.kubernetes.io/configuration-snippet: |
+  proxy_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
+  grpc_set_header l5d-dst-override $service_name.$namespace.svc.cluster.local:$service_port;
+```
+
 ### Setting up distributed tracing
 
 1. Install the collector
@@ -413,11 +560,30 @@ kubectl apply -f https://run.linkerd.io/tracing/collector.yml
 kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 ```
 
-## TODO
-- ☑ Set up Vault for storing secrets
-- ☑ Set up Linkerd for service mesh operations
-- ☑ Set up Keycloak for SSO
-- ☐ Set up cert-manager for managing certificates
+## Serverless With Kubeless
+
+Kubeless is a serverless framework which allows you to deploy
+serverless functions onto a Kubernetes cluster using Kubernetes
+Custom Resource Definitions.
+
+To install Kubeless, use the Kubeless manifests
+
+```
+export RELEASE=$(curl -s https://api.github.com/repos/kubeless/kubeless/releases/latest | grep tag_name | cut -d '"' -f 4)
+kubectl create ns kubeless
+kubectl create -f https://github.com/kubeless/kubeless/releases/download/$RELEASE/kubeless-$RELEASE.yaml
+```
+
+Kubeless also has a UI which can be installed by using the kubernetes
+manifest
+
+```
+kubectl create -f https://raw.githubusercontent.com/kubeless/kubeless-ui/master/k8s.yaml
+```
+
+A [serverless plugin](https://www.serverless.com/framework/docs/providers/kubeless/guide/intro/) for kubeless can help with deploying
+functions to Kubernetes
+
 
 # References
 - Kubernetes ConfigMap Syntax [https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/)
@@ -445,5 +611,8 @@ kubectl apply -f https://run.linkerd.io/tracing/backend.yml
 - Keycloak Audience Setup [https://stackoverflow.com/questions/53550321/keycloak-gatekeeper-aud-claim-and-client-id-do-not-match](https://stackoverflow.com/questions/53550321/keycloak-gatekeeper-aud-claim-and-client-id-do-not-match)
 - Keycloak Gatekeeper Documentation [https://www.keycloak.org/docs/latest/securing_apps/#example-usage-and-configuration](https://www.keycloak.org/docs/latest/securing_apps/#example-usage-and-configuration)
 - Keycloak Bitnami Image [https://hub.docker.com/r/bitnami/keycloak-gatekeeper](https://hub.docker.com/r/bitnami/keycloak-gatekeeper)
-- ProxyInjector [https://github.com/stakater/ProxyInjector](https://github.com/stakater/ProxyInjector)
-- ProxyInject SSO with Keycloak in Kubernetes [https://medium.com/stakater/proxy-injector-enabling-sso-with-keycloak-on-kubernetes-a1012c3d9f8d](https://medium.com/stakater/proxy-injector-enabling-sso-with-keycloak-on-kubernetes-a1012c3d9f8d)
+- cert-manager documentation [https://cert-manager.io/docs/installation/](https://cert-manager.io/docs/installation/)
+- Kubeless install [https://kubeless.io/docs/quick-start/](https://kubeless.io/docs/quick-start/)
+- Kubeless runtimes [https://kubeless.io/docs/runtimes/](https://kubeless.io/docs/runtimes/)
+- Kubeless Expose Functions [https://kubeless.io/docs/http-triggers/](https://kubeless.io/docs/http-triggers/)
+- Kubeless UI [https://github.com/kubeless/kubeless-ui](https://github.com/kubeless/kubeless-ui)
